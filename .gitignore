@@ -8,7 +8,8 @@ dist-ssr
 
 # Secrets
 .env
-.env.production
+.env.*
+!.env.example
 
 # Editor
 .vscode/*
@@ -24,3 +25,7 @@ Desktop.ini
 # Caches
 .vite
 coverage
+supabase/.temp
+
+# Material do enunciado, só local
+*.pdf

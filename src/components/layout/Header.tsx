@@ -11,7 +11,7 @@ export function Header() {
         </a>
         <a
           className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white no-underline hover:bg-brand-hover"
-          href={`https://wa.me/5547997930130`}
+          href={`https://wa.me/${site.whatsapp}`}
         >
           Fale com um especialista
         </a>

@@ -14,6 +14,17 @@ npm run dev
 
 A interface sobe em `http://localhost:5173`. Sem as chaves do Supabase, ela usa os mesmos 20 leads fictícios do seed SQL. Isso deixa o projeto demonstrável no primeiro `npm run dev`.
 
+### Como o avaliador verifica
+
+```bash
+npm run lint
+npm run test
+npm run build
+npm run suggest -- --nome="Ana Lima" --imovel="Cobertura na Barra Sul"
+```
+
+O CI em `.github/workflows/ci.yml` roda lint, testes e build em todo push.
+
 ### Ligar o Supabase
 
 1. Crie um projeto gratuito em [supabase.com](https://supabase.com).
@@ -30,7 +41,7 @@ A chave **não vai para o browser**. Ela fica em `AI_API_KEY` e é usada:
 - na rota local `/api/suggest-message` durante `npm run dev`
 - no script `npm run suggest -- --nome="Ana Lima" --imovel="Cobertura na Barra Sul"`
 
-Sem a chave, os dois caminhos geram uma mensagem local personalizada com nome e imóvel.
+Sem a chave, os dois caminhos geram uma mensagem local personalizada com nome e imóvel. A rota recusa JSON inválido, payload incompleto (`400`) e corpo grande demais (`413`).
 
 ## Etapa 1 · Banco de dados
 
@@ -81,11 +92,13 @@ group by origem
 order by percentual_qualificados desc, origem;
 ```
 
-**Outro padrão.** Indicação chega com menos volume e melhor taxa de qualificação. WhatsApp é o canal de entrada mais cheio. No seed, vários leads perdidos estão em imóveis mais periféricos ou de menor porte, enquanto o interesse em Balneário Camboriú e Barra Sul permanece mais vivo no funil. Com amostra pequena isso é hipótese, não verdade estatística — mas é o tipo de recorte que um time comercial usaria para decidir onde atender primeiro.
+**Outro padrão.** Indicação chega com menos volume e melhor taxa de qualificação. WhatsApp é o canal de entrada mais cheio. No seed, vários leads perdidos estão em imóveis mais periféricos ou de menor porte, enquanto o interesse em Balneário Camboriú e Barra Sul permanece mais vivo no funil.
+
+**Limitação da amostra.** São só 20 registros fictícios. Percentuais mudam com um lead a mais; a leitura serve para mostrar o raciocínio comercial, não para afirmar um padrão de mercado.
 
 ## Etapa 3 · Interface
 
-React 19, Vite 8 e Tailwind 4, organizados em `components`, `services`, `types` e `constants`.
+React 19, Vite 8 e Tailwind 4, organizados em `components`, `services`, `types`, `agent` e `constants`.
 
 Visual baseado no site da CRI: header claro, marca laranja, hero azul-escuro, botões em pílula e linguagem de alto padrão. A fonte do site é Proxima Nova, que é comercial; o CSS usa essa família com fallback para Inter/sistema.
 
@@ -100,20 +113,20 @@ A tela:
 
 Dado nome + imóvel de interesse, o agente devolve uma primeira mensagem pronta para WhatsApp.
 
-Não integrei WhatsApp de verdade, como o case pede. A função vive na interface e também no script `scripts/suggest-message.mjs`.
+Não integrei WhatsApp de verdade, como o case pede. A função vive na interface e também no script `scripts/suggest-message.ts`. A montagem da mensagem (prompt, fallback local e chamada de IA) fica em `src/agent`, compartilhada entre a rota Vite e o CLI.
 
-A IA real, quando existe chave, roda no servidor de desenvolvimento. Colocar `VITE_AI_API_KEY` no frontend vazaría a chave no bundle; por isso a variável é `AI_API_KEY`.
+A IA real, quando existe chave, roda no servidor de desenvolvimento. Colocar `VITE_AI_API_KEY` no frontend vazaria a chave no bundle; por isso a variável é `AI_API_KEY`.
 
 ## Etapa 5 · Decisões, dificuldades e o que eu faria com mais tempo
 
 **Por que React + Supabase, e não um backend .NET neste case.** Neste desafio, o valor está em ponta a ponta, SQL visível e um agente explicável. Um backend próprio atrasaria a entrega sem melhorar a avaliação das cinco etapas. Num produto interno da CRI eu usaria uma API mais estruturada; aqui o recorte menor atende melhor o que o case pede.
 
-**Dificuldade.** A API da OpenAI não deve ser chamada direto do browser: CORS e vazamento de chave. Resolvi com uma rota local no Vite e um script Node, os dois com fallback.
+**Dificuldade.** A API da OpenAI não deve ser chamada direto do browser: CORS e vazamento de chave. Resolvi com uma rota local no Vite e um script Node, os dois com fallback e a mesma função em `src/agent/suggestMessage.ts`.
 
 **Com mais tempo eu:**
 
 - criaria um backend pequeno para o agente, troca de status e auditoria
-- adicionaria testes automatizados nas consultas e no gerador de mensagem
+- cobriria as consultas SQL com um banco de teste (hoje os testes cobrem o resumo no frontend e o gerador de mensagem)
 - publicaria a interface (Vercel) com um projeto Supabase de demonstração
 - extraía identidade visual com tokens oficiais da marca, se o time fornecesse o kit
 
@@ -121,4 +134,5 @@ A IA real, quando existe chave, roda no servidor de desenvolvimento. Colocar `VI
 
 - Repositório: este projeto, com histórico de commits por etapa
 - Interface: `npm run dev`, ou um deploy estático depois de configurar o Supabase
+- Qualidade: `npm run lint`, `npm run test` e `npm run build`
 - Este README cobre a etapa 5 do PDF

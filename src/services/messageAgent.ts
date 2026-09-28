@@ -1,11 +1,14 @@
 import { buildLocalMessage } from '../agent/firstMessage';
+import type { MessageSource, SuggestedMessage } from '../agent/suggestMessage';
 
-export type MessageSource = 'ai' | 'local';
+export type { MessageSource, SuggestedMessage };
 
-export type SuggestedMessage = {
-  source: MessageSource;
-  message: string;
-};
+class SuggestClientError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SuggestClientError';
+  }
+}
 
 export async function suggestFirstMessage(
   nome: string,
@@ -23,8 +26,14 @@ export async function suggestFirstMessage(
       if (payload.message) {
         return payload;
       }
+    } else if (response.status >= 400 && response.status < 500) {
+      const payload = (await response.json()) as { error?: string };
+      throw new SuggestClientError(payload.error || 'Não foi possível gerar a mensagem.');
     }
-  } catch {
+  } catch (caught) {
+    if (caught instanceof SuggestClientError) {
+      throw caught;
+    }
     // Sem o endpoint (preview/deploy estático), usamos o gerador local.
   }
 

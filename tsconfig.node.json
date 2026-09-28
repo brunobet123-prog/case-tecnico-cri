@@ -17,5 +17,11 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["vite.config.ts", "vite.suggest-plugin.ts", "src/agent/firstMessage.ts"]
+  "include": [
+    "vite.config.ts",
+    "vite.suggest-plugin.ts",
+    "scripts/suggest-message.ts",
+    "src/agent/firstMessage.ts",
+    "src/agent/suggestMessage.ts"
+  ]
 }

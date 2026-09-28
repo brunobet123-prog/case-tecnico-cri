@@ -11,7 +11,7 @@ export function Footer() {
           <p className="mt-2 text-sm text-white/75">{site.hours}</p>
         </div>
         <div className="flex flex-col gap-2 text-sm">
-          <a className="text-white no-underline hover:text-brand" href={`tel:+5547997930130`}>
+          <a className="text-white no-underline hover:text-brand" href={`tel:+${site.whatsapp}`}>
             {site.phone}
           </a>
           <a className="text-white no-underline hover:text-brand" href={`mailto:${site.email}`}>

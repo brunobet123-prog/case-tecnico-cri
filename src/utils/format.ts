@@ -20,10 +20,24 @@ export const statusClassNames: Record<LeadStatus, string> = {
   perdido: 'bg-danger/10 text-danger',
 };
 
+export function normalizeTextEncoding(value: string): string {
+  if (!/[ÃÂ]/.test(value)) {
+    return value;
+  }
+
+  try {
+    const bytes = Uint8Array.from(value, (character) => character.charCodeAt(0));
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return value;
+  }
+}
+
 export function formatDate(iso: string): string {
   return new Intl.DateTimeFormat('pt-BR', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
+    timeZone: 'America/Sao_Paulo',
   }).format(new Date(iso));
 }

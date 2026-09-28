@@ -1,7 +1,15 @@
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
-import { buildAgentPrompt, buildLocalMessage } from './src/agent/firstMessage.ts';
+import {
+  generateSuggestedMessage,
+  parseSuggestInput,
+  parseSuggestJsonBody,
+  SuggestRequestError,
+} from './src/agent/suggestMessage.ts';
 
 type Env = Record<string, string>;
+
+const MAX_BODY_BYTES = 8 * 1024;
 
 export function suggestMessagePlugin(env: Env): Plugin {
   return {
@@ -13,86 +21,58 @@ export function suggestMessagePlugin(env: Env): Plugin {
           return;
         }
 
-        const chunks: Buffer[] = [];
-        request.on('data', (chunk: Buffer) => {
-          chunks.push(chunk);
-        });
+        void readLimitedBody(request, MAX_BODY_BYTES)
+          .then((rawBody) => handleSuggestMessage(rawBody, env))
+          .then((payload) => {
+            sendJson(response, 200, payload);
+          })
+          .catch((error: unknown) => {
+            if (error instanceof SuggestRequestError) {
+              sendJson(response, error.statusCode, { error: error.message });
+              return;
+            }
 
-        request.on('end', () => {
-          void handleSuggestMessage(Buffer.concat(chunks).toString('utf8'), env)
-            .then((payload) => {
-              response.statusCode = 200;
-              response.setHeader('Content-Type', 'application/json');
-              response.end(JSON.stringify(payload));
-            })
-            .catch((error: unknown) => {
-              const message = error instanceof Error ? error.message : 'Falha ao gerar mensagem.';
-              response.statusCode = 500;
-              response.setHeader('Content-Type', 'application/json');
-              response.end(JSON.stringify({ error: message }));
-            });
-        });
+            const message = error instanceof Error ? error.message : 'Falha ao gerar mensagem.';
+            sendJson(response, 500, { error: message });
+          });
       });
     },
   };
 }
 
 async function handleSuggestMessage(rawBody: string, env: Env) {
-  const body = JSON.parse(rawBody || '{}') as { nome?: string; imovelInteresse?: string };
-  const nome = body.nome?.trim() ?? '';
-  const imovelInteresse = body.imovelInteresse?.trim() ?? '';
+  const parsed = parseSuggestJsonBody(rawBody);
+  const { nome, imovelInteresse } = parseSuggestInput(parsed);
+  return generateSuggestedMessage(nome, imovelInteresse, env);
+}
 
-  if (!nome || !imovelInteresse) {
-    throw new Error('Informe nome e imóvel de interesse.');
-  }
+function sendJson(response: ServerResponse, statusCode: number, payload: unknown) {
+  response.statusCode = statusCode;
+  response.setHeader('Content-Type', 'application/json');
+  response.end(JSON.stringify(payload));
+}
 
-  const apiKey = env.AI_API_KEY;
-  if (!apiKey) {
-    return {
-      source: 'local',
-      message: buildLocalMessage(nome, imovelInteresse),
-    };
-  }
+function readLimitedBody(request: IncomingMessage, maxBytes: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
 
-  const baseUrl = (env.AI_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, '');
-  const model = env.AI_MODEL || 'gpt-4o-mini';
-  const prompt = buildAgentPrompt(nome, imovelInteresse);
+    request.on('data', (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > maxBytes) {
+        request.destroy();
+        reject(new SuggestRequestError('Corpo da requisição muito grande.', 413));
+        return;
+      }
+      chunks.push(chunk);
+    });
 
-  const aiResponse = await fetch(`${baseUrl}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model,
-      temperature: 0.4,
-      messages: [
-        {
-          role: 'system',
-          content:
-            'Você é um consultor da CRI Soluções Imobiliárias. Responda só com a mensagem pronta para enviar ao lead.',
-        },
-        { role: 'user', content: prompt },
-      ],
-    }),
+    request.on('end', () => {
+      resolve(Buffer.concat(chunks).toString('utf8'));
+    });
+
+    request.on('error', (error) => {
+      reject(error);
+    });
   });
-
-  if (!aiResponse.ok) {
-    throw new Error(`A API de IA respondeu ${aiResponse.status}.`);
-  }
-
-  const data = (await aiResponse.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-  const content = data.choices?.[0]?.message?.content?.trim();
-
-  if (!content) {
-    throw new Error('A API de IA não devolveu texto.');
-  }
-
-  return {
-    source: 'ai',
-    message: content,
-  };
 }

@@ -1,5 +1,6 @@
 import { seedLeads } from '../data/leads.seed';
 import { leadOrigins, leadStatuses, type Lead, type LeadOrigin, type LeadStatus } from '../types/lead';
+import { normalizeTextEncoding } from '../utils/format';
 import { hasSupabaseConfig, supabase } from './supabaseClient';
 
 type LeadRow = {
@@ -29,9 +30,9 @@ function mapRow(row: LeadRow): Lead {
 
   return {
     id: row.id,
-    nome: row.nome,
+    nome: normalizeTextEncoding(row.nome),
     telefone: row.telefone,
-    imovelInteresse: row.imovel_interesse,
+    imovelInteresse: normalizeTextEncoding(row.imovel_interesse),
     origem: row.origem,
     status: row.status,
     createdAt: row.created_at,
